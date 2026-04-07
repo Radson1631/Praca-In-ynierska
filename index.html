@@ -888,11 +888,11 @@
             <div class="collab-help">
                 <strong>Instrukcja:</strong>
                 <ol>
-                    <li>Podłącz oba komputery do tej samej sieci Wi‑Fi/LAN.</li>
-                    <li>Na komputerze A wpisz nazwę pokoju i kliknij <code>Użyj IPv4 LAN</code>.</li>
-                    <li>Kliknij <code>Kopiuj link zaproszenia</code> i wyślij go komputerowi B.</li>
-                    <li>Na obu komputerach otwórz ten sam link i kliknij <code>Połącz</code>.</li>
-                    <li>Edycja będzie synchronizowana na żywo przez WebSocket.</li>
+                    <li>Na obu komputerach otwórz ten sam adres aplikacji (np. URL z Render).</li>
+                    <li>W polu <code>Stałe połączenie (WebSocket)</code> wpisz adres serwera, np. <code>wss://twoj-serwer.onrender.com/ws</code>.</li>
+                    <li>Wpisz ten sam identyfikator w polu <code>Pokój</code> (np. <code>default</code>).</li>
+                    <li>Kliknij <code>Połącz</code> na obu komputerach.</li>
+                    <li>Po połączeniu zmiany synchronizują się na żywo; <code>Wyślij teraz</code> wymusza natychmiastową synchronizację.</li>
                 </ol>
             </div>
 
@@ -903,7 +903,6 @@
                     <input type="text" id="collabRoomId" placeholder="Pokój, np. projekt-1" value="default" />
                 </div>
                 <div class="collab-inline-actions">
-                    <button type="button" id="collabDetectLanIpv4">Użyj IPv4 LAN</button>
                     <button type="button" id="collabConnectWs">Połącz</button>
                     <button type="button" id="collabSyncNow">Wyślij teraz</button>
                     <button type="button" id="collabDisconnectWs">Rozłącz</button>

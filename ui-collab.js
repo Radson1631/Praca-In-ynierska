@@ -38,7 +38,6 @@
 	const collabRoomId = document.getElementById("collabRoomId");
 	const collabConnectWs = document.getElementById("collabConnectWs");
 	const collabDisconnectWs = document.getElementById("collabDisconnectWs");
-	const collabDetectLanIpv4 = document.getElementById("collabDetectLanIpv4");
 	const collabPeerCount = document.getElementById("collabPeerCount");
 	const collabCopyInviteUrl = document.getElementById("collabCopyInviteUrl");
 	const collabInviteUrl = document.getElementById("collabInviteUrl");
@@ -260,54 +259,6 @@
 			return inviteUrl;
 		};
 
-		const detectLanIpv4 = async () => {
-			const pickBestHostFromInfo = info => {
-				const preferred = String(info?.preferredLanIp || "").trim();
-				const lanIps = Array.isArray(info?.lanIps)
-					? info.lanIps.map(value => String(value || "").trim()).filter(Boolean)
-					: [];
-				const all = [];
-				if (preferred) all.push(preferred);
-				for (const ip of lanIps) {
-					if (!all.includes(ip)) all.push(ip);
-				}
-				if (!all.length) return "";
-				const privateNonHostOnly = all.filter(
-					ip => isPrivateIpv4Host(ip) && !/^192\.168\.56\./.test(ip),
-				);
-				if (privateNonHostOnly.length) return privateNonHostOnly[0];
-				const privateIps = all.filter(ip => isPrivateIpv4Host(ip));
-				if (privateIps.length) return privateIps[0];
-				return all[0];
-			};
-
-			const candidates = [];
-			const currentHost = String(window.location.hostname || "").trim();
-			if (currentHost) {
-				candidates.push(`/__collab_info`);
-				candidates.push(`http://${currentHost}:8787/__collab_info`);
-			}
-			candidates.push("http://127.0.0.1:8787/__collab_info");
-			candidates.push("http://localhost:8787/__collab_info");
-
-			for (const url of candidates) {
-				try {
-					const response = await fetch(url, { cache: "no-store" });
-					if (!response.ok) continue;
-					const info = await response.json();
-					const host = pickBestHostFromInfo(info);
-					const port = Number(info?.port || 8787) || 8787;
-					if (!host) continue;
-					if (collabServerUrl) collabServerUrl.value = `ws://${host}:${port}/ws`;
-					refreshInviteUrl();
-					setStatusSimple(`ustawiono IPv4 LAN: ${host}`);
-					return true;
-				} catch (_) {}
-			}
-			setStatusSimple("nie wykryto IPv4 LAN (uruchom serwer na komputerze A)");
-			return false;
-		};
-
 		const wsCanSend = () => ws && ws.readyState === WebSocket.OPEN;
 
 		const exportSnapshot = () => {
@@ -430,9 +381,6 @@
 
 		menuCollaborate?.addEventListener("click", openSimple);
 		collabClose?.addEventListener("click", closeSimple);
-		collabDetectLanIpv4?.addEventListener("click", async () => {
-			await detectLanIpv4();
-		});
 		collabConnectWs?.addEventListener("click", () => {
 			connectWs();
 		});
