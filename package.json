@@ -1,0 +1,11 @@
+{
+	"name": "inzynierka-collab",
+	"version": "1.0.0",
+	"private": true,
+	"scripts": {
+		"start:collab": "node collab-server.js"
+	},
+	"dependencies": {
+		"ws": "^8.18.3"
+	}
+}

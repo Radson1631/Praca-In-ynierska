@@ -1,0 +1,1104 @@
+﻿<!DOCTYPE html>
+<html lang="pl">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Radstrowo</title>
+    <link rel="stylesheet" href="body.css" />
+</head>
+
+<body>
+    <!-- GÓRNE MENU -->
+    <div class="menu-bar">
+        <button id="mobileMenuToggle" class="mobile-menu-toggle" type="button" aria-label="Pokaż menu"
+            aria-expanded="false" aria-controls="topMainMenu">☰</button>
+        <ul id="topMainMenu">
+            <li>
+                <a href="#">Plik</a>
+                <ul>
+                    <li><a href="#" id="newFile">Nowy</a></li>
+                    <li><a href="#" id="openFileBtn">Otwórz</a></li>
+                    <input type="file" id="fileInput" accept="image/*" style="display: none" />
+                    <li><a href="#" onclick="saveImage()">Zapisz</a></li>
+                    <li><a href="#" onclick="downloadImage()">Zapisz jako PNG</a></li>
+                </ul>
+            </li>
+            <li>
+                <a href="#">Edycja</a>
+                <ul>
+                    <li><a href="#" onclick="undo()">Cofnij</a></li>
+                    <li><a href="#" onclick="redo()">Ponów</a></li>
+                    <li><a href="#" onclick="clearCanvas()">Wyczyść</a></li>
+                    <li><a href="#" onclick="fillWithColor()">Wypełnij kolorem</a></li>
+                    <li class="has-submenu">
+                        <a href="#">Przekształć</a>
+                        <ul class="submenu">
+                            <li><a href="#" id="transformScale">Skaluj</a></li>
+                            <li><a href="#" id="transformRotate">Obróć</a></li>
+                            <li><a href="#" id="transformRotate90">Obróć o 90°</a></li>
+                            <li><a href="#" id="transformRotate180">Obróć o 180°</a></li>
+                            <li><a href="#" id="transformSkew">Zniekształć</a></li>
+                            <li><a href="#" id="transformFlipH">Odbij poziomo</a></li>
+                            <li><a href="#" id="transformFlipV">Odbij pionowo</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </li>
+
+            <li>
+                <a href="#">Okno</a>
+                <ul>
+                    <li><a href="#" id="menuCompactMode">Tryb compact: wyłączony</a></li>
+                    <li><a href="#" id="menuTypografia">Typografia</a></li>
+                    <li><a href="#" id="menuWarstwy">Warstwy</a></li>
+                    <li><a href="#" id="menuPedzel">Ustawienia pędzla</a></li>
+                    <li><a href="#" id="menuKorektor">Panel efektów</a></li>
+                    <li><a href="#" id="menuFigura">Figura</a></li>
+                    <li><a href="#" id="menuCollaborate">Tryb współpraca</a></li>
+                </ul>
+            </li>
+
+        </ul>
+        <div id="activeLayerNameBar" class="active-layer-name-bar">Warstwa 1</div>
+    </div>
+
+    <!-- TYTUŁ -->
+    <h1 class="left-title hidden">Radstrowo</h1>
+
+    <!-- LEWY PASEK NARZĘDZI -->
+    <div class="toolbar-panel hidden">
+        <input type="range" id="brushSize" min="1" max="40" value="8" class="hidden" />
+
+        <!-- MOVE -->
+        <button class="tool-button" id="moveTool" title="Przesuwanie warstwy">
+            <span class="tool-icon">
+                <svg viewBox="0 0 24 24">
+                    <path d="M12 3l3 3h-2v4h4V8l3 3-3 3v-2h-4v4h2l-3 3-3-3h2v-4H8v2l-3-3 3-3v2h4V6H9l3-3z"
+                        fill="currentColor" />
+                </svg>
+            </span>
+        </button>
+
+        <!-- ZOOM -->
+        <div class="zoom-dropdown">
+            <button class="tool-button" id="zoomTool" title="Lupa">
+                <span class="tool-icon">
+                    <svg viewBox="0 0 24 24">
+                        <circle cx="10" cy="10" r="6" fill="none" stroke="currentColor" stroke-width="2" />
+                        <line x1="14" y1="14" x2="20" y2="20" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" />
+                    </svg>
+                </span>
+            </button>
+            <div class="zoom-options hidden">
+                <button data-zoom="in">Powiększ</button>
+                <button data-zoom="out">Pomniejsz</button>
+            </div>
+        </div>
+
+        <!-- SELECT -->
+        <div class="select-dropdown">
+            <button class="tool-button" id="selectTool" title="Zaznaczanie">
+                <span class="tool-icon">
+                    <svg viewBox="0 0 24 24">
+                        <rect x="4" y="4" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-dasharray="4 3" />
+                    </svg>
+                </span>
+            </button>
+
+            <div class="select-options hidden">
+                <button data-select="rect">Zaznaczenie prostokątne</button>
+                <button data-select="ellipse">Zaznaczenie eliptyczne</button>
+                <button data-select="singleRow">Zaznaczenie pojedynczych rzędów</button>
+                <button data-select="singleColumn">Zaznaczenie pojedynczych kolumn</button>
+                <button data-select="lasso">Lasso</button>
+            </div>
+        </div>
+
+        <!-- CROP -->
+        <button class="tool-button" id="cropTool" title="Kadrowanie">
+            <span class="tool-icon">
+                <svg viewBox="0 0 24 24">
+                    <path d="M7 3v14h14M3 7h14v14" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="square" />
+                </svg>
+            </span>
+        </button>
+
+        <!-- SHAPES -->
+        <div class="shape-dropdown">
+            <button class="tool-button" id="shapeButton" title="Figury">
+                <span class="tool-icon">
+                    <svg viewBox="0 0 24 24">
+                        <rect x="3" y="3" width="7" height="7" stroke="currentColor" stroke-width="2" fill="none" />
+                        <circle cx="17" cy="7" r="3.5" stroke="currentColor" stroke-width="2" fill="none" />
+                        <path d="M5 20l4-8 4 8H5z" stroke="currentColor" stroke-width="2" fill="none" />
+                    </svg>
+                </span>
+            </button>
+
+            <div class="shape-options hidden">
+                <button data-shape="rectangle">Prostokąt</button>
+                <button data-shape="roundRect">Zaokrąglony prostokąt</button>
+                <button data-shape="ellipse">Elipsa</button>
+                <button data-shape="line">Linia</button>
+            </div>
+        </div>
+
+        <!-- PIPETTE -->
+        <button class="tool-button" id="pipetteTool" title="Pipeta">
+            <span class="tool-icon">
+                <svg viewBox="0 0 24 24">
+                    <path d="M17 2l4 4-4 4-2-2-8 8v4h4l8-8-2-2 4-4z" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linejoin="round" />
+                </svg>
+            </span>
+        </button>
+
+        <!-- TEXT TOOL -->
+        <button class="tool-button" id="textTool" title="Tekst">
+            <span class="tool-icon">
+                <svg viewBox="0 0 24 24">
+                    <path d="M4 4h16M12 4v16" stroke="currentColor" stroke-width="2" fill="none"
+                        stroke-linecap="square" />
+                </svg>
+            </span>
+        </button>
+
+        <!-- PEN TOOLS -->
+        <div class="pen-dropdown">
+            <button class="tool-button" id="penTool" title="Pióro">
+                <span class="tool-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M12 3l6 6-6 12-6-12 6-6z" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linejoin="round" />
+                        <circle cx="12" cy="13" r="1.5" fill="currentColor" />
+                        <path d="M9 6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                    </svg>
+                </span>
+            </button>
+            <div class="pen-options hidden">
+                <button data-pen="pen">Pióro</button>
+                <button data-pen="freePen">Pióro dowolne</button>
+                <button data-pen="curvaturePen">Pióro krzywizny</button>
+                <button data-pen="addPoint">Dodawanie punktów kontrolnych</button>
+                <button data-pen="removePoint">Usuwanie punktów kontrolnych</button>
+            </div>
+        </div>
+
+        <!-- BRUSH -->
+        <div class="brush-dropdown">
+            <button class="tool-button" id="brushTool" title="Pędzel">
+                <span class="tool-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M19 3l2 2-8 8-3-3 9-7z" stroke="currentColor" stroke-width="2" fill="none" />
+                        <path d="M5 21c3 0 5-2 5-5l3 3c-1 3-4 4-8 2z" stroke="currentColor" stroke-width="2"
+                            fill="none" />
+                    </svg>
+                </span>
+            </button>
+            <div class="brush-options hidden">
+                <button data-brush-mode="paint">Pędzel</button>
+                <button data-brush-mode="eraser">Gumka</button>
+            </div>
+        </div>
+
+        <!-- REPAIR TOOLS -->
+        <div class="repair-dropdown">
+            <button class="tool-button" id="repairTool" title="Korekta">
+                <span class="tool-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M4 12h16M12 4v16" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                        <circle cx="12" cy="12" r="3.5" fill="none" stroke="currentColor" stroke-width="2" />
+                    </svg>
+                </span>
+            </button>
+            <div class="repair-options hidden">
+                <button data-repair="spot">Punktowy pędzel korygujący</button>
+                <button data-repair="heal">Pędzel korygujący</button>
+                <button data-repair="patch">Łatka</button>
+            </div>
+        </div>
+
+        <!-- ERASE -->
+        <button class="tool-button" onclick="clearCanvas()" title="Wyczyść">
+            <span class="tool-icon">
+                <svg viewBox="0 0 24 24">
+                    <path d="M3 15l7-9 11 11-5 5H6z" stroke="currentColor" stroke-width="2" fill="none" />
+                </svg>
+            </span>
+        </button>
+
+        <!-- WORKSPACE SIZE -->
+        <button class="tool-button" id="workspaceSizeTool" title="Zmień obszar roboczy">
+            <span class="tool-icon">
+                <svg viewBox="0 0 24 24">
+                    <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" stroke="currentColor" stroke-width="2" fill="none"
+                        stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+            </span>
+        </button>
+
+        <!-- kolory -->
+        <div class="color-group">
+            <div class="color-item">
+                <span class="color-label">Obrys</span>
+                <input type="color" id="strokeColor" value="#000000" />
+            </div>
+            <div class="color-item">
+                <span class="color-label">Tło</span>
+                <input type="color" id="fillColor" value="#ffffff" />
+            </div>
+        </div>
+    </div>
+
+    <!-- UCHWYT ZWIJANIA -->
+    <button id="toolbarToggle" class="toolbar-toggle hidden">‹</button>
+
+    <!-- PANEL WARSTW -->
+    <div class="layers-panel hidden">
+        <div class="layers-header">
+            <span>Warstwy</span>
+            <div class="layers-header-actions">
+                <button id="addLayer">+</button>
+                <button id="layersPanelClose" class="panel-close-like-text" aria-label="Zamknij panel warstw">×</button>
+            </div>
+        </div>
+        <div class="layers-controls">
+            <div class="layers-controls-row">
+                <label for="layerBlendModeSelect">Tryb:</label>
+                <select id="layerBlendModeSelect">
+                    <option value="normal">Normalnie</option>
+                    <option value="dissolve">Rozpuszczanie</option>
+                    <option disabled>────────</option>
+                    <option value="darken">Ciemniej</option>
+                    <option value="multiply">Pomnóż</option>
+                    <option value="colorBurn">Ściemnianie</option>
+                    <option value="linearBurn">Ściemnianie liniowe</option>
+                    <option value="darkerColor">Ciemniejszy kolor</option>
+                    <option disabled>────────</option>
+                    <option value="lighten">Jaśniej</option>
+                    <option value="screen">Ekran</option>
+                    <option value="colorDodge">Rozjaśnianie</option>
+                    <option value="linearDodge">Rozjaśnianie liniowe (Dodaj)</option>
+                    <option value="lighterColor">Jaśniejszy kolor</option>
+                    <option disabled>────────</option>
+                    <option value="overlay">Nakładka</option>
+                    <option value="softLight">Łagodne światło</option>
+                    <option value="hardLight">Ostre światło</option>
+                    <option value="vividLight">Światło jaskrawe</option>
+                    <option value="linearLight">Światło liniowe</option>
+                    <option value="pinLight">Światło punktowe</option>
+                    <option value="hardMix">Mieszanie twarde</option>
+                    <option disabled>────────</option>
+                    <option value="difference">Różnica</option>
+                    <option value="exclusion">Wykluczenie</option>
+                    <option value="subtract">Odejmij</option>
+                    <option value="divide">Podziel</option>
+                    <option disabled>────────</option>
+                    <option value="hue">Barwa</option>
+                    <option value="saturation">Nasycenie</option>
+                    <option value="color">Kolor</option>
+                    <option value="luminosity">Jasność</option>
+                </select>
+            </div>
+            <div class="layers-controls-row compact">
+                <label for="layerOpacityInput">Krycie:</label>
+                <input type="range" id="layerOpacityInput" min="0" max="100" value="100" />
+                <span id="layerOpacityValue">100%</span>
+            </div>
+            <div class="layers-controls-row compact">
+                <label for="layerFillInput">Wypełnienie:</label>
+                <input type="range" id="layerFillInput" min="0" max="100" value="100" />
+                <span id="layerFillValue">100%</span>
+            </div>
+        </div>
+        <ul id="layerList"></ul>
+    </div>
+    <div id="layersContextMenu" class="layers-context-menu hidden">
+        <button type="button" id="mergeSelectedLayersMenuItem">Scal wybrane warstwy</button>
+    </div>
+
+    <!-- PANEL FIGURY (EDYCJA KSZTAŁTU) -->
+    <div id="shapePanel" class="shape-panel hidden">
+        <div class="shape-panel-header">
+            <span>Figura</span>
+            <button id="shapePanelClose" class="panel-close-like-text" aria-label="Zamknij panel figury">×</button>
+        </div>
+        <div class="shape-panel-body">
+            <div class="shape-row">
+                <label for="shapeStrokeWidth">Grubość obrysu</label>
+                <input type="range" id="shapeStrokeWidth" min="1" max="40" value="3" />
+            </div>
+            <div class="shape-row">
+                <label for="shapeCornerRadius">Promień zaokrąglenia</label>
+                <input type="range" id="shapeCornerRadius" min="0" max="100" value="20" />
+            </div>
+        </div>
+    </div>
+
+    <!-- PANEL KOREKT OBRAZU -->
+    <div id="adjustPanel" class="adjust-panel hidden">
+        <div class="adjust-panel-header">
+            <span>Panel efektów</span>
+            <button type="button" id="adjustPanelClose" class="panel-close-like-text"
+                aria-label="Zamknij panel korekt">×</button>
+        </div>
+        <div class="adjust-panel-body">
+            <div class="adjust-subtitle">Dodaj korektę</div>
+            <div class="adjust-grid">
+                <button type="button" class="adjust-btn active" data-adjust="brightnessContrast">Jasność +
+                    Kontrast</button>
+                <button type="button" class="adjust-btn" data-adjust="saturation">Jaskrawość i nasycenie</button>
+                <button type="button" class="adjust-btn" data-adjust="hue">Barwa</button>
+                <button type="button" class="adjust-btn" data-adjust="exposure">Ekspozycja</button>
+                <button type="button" class="adjust-btn" data-adjust="threshold">Próg</button>
+                <button type="button" class="adjust-btn" data-adjust="invert">Negatyw</button>
+                <button type="button" class="adjust-btn" data-adjust="colorLookup3D">Szukaj kolorów</button>
+                <button type="button" class="adjust-btn" data-adjust="gradientMap">Mapa gradientu</button>
+                <button type="button" class="adjust-btn" data-adjust="blackWhite">Czarno-białe</button>
+                <button type="button" class="adjust-btn" data-adjust="colorBalance">Balans kolorów</button>
+                <button type="button" class="adjust-btn" data-adjust="reverseTone">Odwróć</button>
+                <button type="button" class="adjust-btn" data-adjust="curves">Krzywe</button>
+            </div>
+
+            <div id="adjustCurvesWrap" class="adjust-curves-wrap hidden">
+                <div class="adjust-curves-top">
+                    <label for="adjustCurvesChannelSelect" class="adjust-curves-channel">
+                        <span>Kanał</span>
+                        <select id="adjustCurvesChannelSelect">
+                            <option value="master">RGB (Alt+2)</option>
+                            <option value="red">Czerwony (Alt+3)</option>
+                            <option value="green">Zielony (Alt+4)</option>
+                            <option value="blue">Niebieski (Alt+5)</option>
+                        </select>
+                    </label>
+                    <button type="button" id="adjustCurvesReset">Reset</button>
+                </div>
+                <canvas id="adjustCurvesCanvas" width="240" height="240"></canvas>
+                <div class="adjust-curves-tip">Kliknij by dodać punkt, przeciągnij by edytować, dwuklik usuwa punkt.
+                </div>
+            </div>
+
+            <div id="adjustExposureWrap" class="adjust-exposure-wrap hidden">
+                <div class="adjust-control-row">
+                    <label for="adjustExposureValue">Światło</label>
+                    <div class="adjust-control-input">
+                        <input type="range" id="adjustExposureValue" min="-500" max="500" value="0" />
+                        <span id="adjustExposureText">0,00</span>
+                    </div>
+                </div>
+                <div class="adjust-control-row">
+                    <label for="adjustOffsetValue">Przesunięcie</label>
+                    <div class="adjust-control-input">
+                        <input type="range" id="adjustOffsetValue" min="-5000" max="5000" value="0" />
+                        <span id="adjustOffsetText">0,0000</span>
+                    </div>
+                </div>
+                <div class="adjust-control-row">
+                    <label for="adjustGammaValue">Korekta gamma</label>
+                    <div class="adjust-control-input">
+                        <input type="range" id="adjustGammaValue" min="10" max="500" value="100" />
+                        <span id="adjustGammaText">1,00</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="adjustHueWrap" class="adjust-exposure-wrap hidden">
+                <div class="adjust-control-row">
+                    <label for="adjustHuePresetSelect">Ustawienie predefiniowane</label>
+                    <div class="adjust-control-input">
+                        <select id="adjustHuePresetSelect">
+                            <option value="default">Domyślne</option>
+                            <option value="cyanotype">Cyjanotypia</option>
+                            <option value="boostedVibrance">Bardziej zwiększ nasycenie</option>
+                            <option value="saturationBoost">Zwiększ nasycenie</option>
+                            <option value="oldStyle">W starym stylu</option>
+                            <option value="redBoost">Czerwone wzmocnienie</option>
+                            <option value="sepiaTone">Sepia</option>
+                            <option value="strongSaturation">Mocne nasycenie</option>
+                            <option value="yellowBoost">Żółte wzmocnienie</option>
+                            <option value="custom">Własny</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="adjust-control-row">
+                    <label for="adjustHueRangeSelect">Zakres</label>
+                    <div class="adjust-control-input">
+                        <select id="adjustHueRangeSelect">
+                            <option value="master">Oryginał (Alt+2)</option>
+                            <option value="reds">Czerwone (Alt+3)</option>
+                            <option value="yellows">Żółte (Alt+4)</option>
+                            <option value="greens">Zielone (Alt+5)</option>
+                            <option value="cyans">Niebieskozielone (Alt+6)</option>
+                            <option value="blues">Niebieskie (Alt+7)</option>
+                            <option value="magentas">Karmazynowe (Alt+8)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="adjust-control-row">
+                    <label for="adjustHueValue">Barwa</label>
+                    <div class="adjust-control-input">
+                        <input type="range" id="adjustHueValue" min="-180" max="180" value="0" />
+                        <span id="adjustHueText">0</span>
+                    </div>
+                </div>
+                <div class="adjust-control-row">
+                    <label for="adjustHueSaturationValue">Nasycenie</label>
+                    <div class="adjust-control-input">
+                        <input type="range" id="adjustHueSaturationValue" min="-100" max="100" value="0" />
+                        <span id="adjustHueSaturationText">0%</span>
+                    </div>
+                </div>
+                <div class="adjust-control-row">
+                    <label for="adjustHueLightnessValue">Jasność</label>
+                    <div class="adjust-control-input">
+                        <input type="range" id="adjustHueLightnessValue" min="-100" max="100" value="0" />
+                        <span id="adjustHueLightnessText">0%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="adjustColorBalanceWrap" class="adjust-exposure-wrap hidden">
+                <div class="adjust-control-row">
+                    <label for="adjustColorBalanceTone">Odcień</label>
+                    <div class="adjust-control-input">
+                        <select id="adjustColorBalanceTone">
+                            <option value="midtones">Półtony</option>
+                            <option value="shadows">Cienie</option>
+                            <option value="highlights">Podświetlenia</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="adjust-balance-row">
+                    <div class="adjust-balance-labels">
+                        <span>Niebieskozielony</span>
+                        <span>Czerwony</span>
+                    </div>
+                    <div class="adjust-balance-input">
+                        <input type="range" id="adjustColorBalanceCyanRed" min="-100" max="100" value="0" />
+                        <span id="adjustColorBalanceCyanRedText">0</span>
+                    </div>
+                </div>
+
+                <div class="adjust-balance-row">
+                    <div class="adjust-balance-labels">
+                        <span>Karmazynowy</span>
+                        <span>Zielony</span>
+                    </div>
+                    <div class="adjust-balance-input">
+                        <input type="range" id="adjustColorBalanceMagentaGreen" min="-100" max="100" value="0" />
+                        <span id="adjustColorBalanceMagentaGreenText">0</span>
+                    </div>
+                </div>
+
+                <div class="adjust-balance-row">
+                    <div class="adjust-balance-labels">
+                        <span>Żółty</span>
+                        <span>Niebieski</span>
+                    </div>
+                    <div class="adjust-balance-input">
+                        <input type="range" id="adjustColorBalanceYellowBlue" min="-100" max="100" value="0" />
+                        <span id="adjustColorBalanceYellowBlueText">0</span>
+                    </div>
+                </div>
+
+                <label class="adjust-balance-checkbox">
+                    <input type="checkbox" id="adjustColorBalancePreserveLuminosity" checked />
+                    <span>Zachowaj jasność</span>
+                </label>
+            </div>
+
+            <div id="adjustBlackWhiteWrap" class="adjust-exposure-wrap hidden">
+                <div class="adjust-control-row">
+                    <label for="adjustBlackWhitePresetSelect">Ustawienie predefiniowane</label>
+                    <div class="adjust-control-input">
+                        <select id="adjustBlackWhitePresetSelect">
+                            <option value="default">Domyślne</option>
+                            <option value="highContrastRed">Duży kontrast czerwieni</option>
+                            <option value="highContrastBlue">Duży kontrast niebieskiego</option>
+                            <option value="infrared">Podczerwień</option>
+                            <option value="custom">Własny</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="adjust-blackwhite-tint-row">
+                    <label><input type="checkbox" id="adjustBlackWhiteTintEnabled" /> Tinta</label>
+                    <input type="color" id="adjustBlackWhiteTintColor" value="#e1d3b3" />
+                </div>
+
+                <div class="adjust-bw-row">
+                    <label for="adjustBwReds">Czerwienie</label>
+                    <div class="adjust-bw-input">
+                        <input type="range" id="adjustBwReds" min="-200" max="300" value="40" />
+                        <span id="adjustBwRedsText">40</span>
+                    </div>
+                </div>
+                <div class="adjust-bw-row">
+                    <label for="adjustBwYellows">Żółcie</label>
+                    <div class="adjust-bw-input">
+                        <input type="range" id="adjustBwYellows" min="-200" max="300" value="60" />
+                        <span id="adjustBwYellowsText">60</span>
+                    </div>
+                </div>
+                <div class="adjust-bw-row">
+                    <label for="adjustBwGreens">Zielenie</label>
+                    <div class="adjust-bw-input">
+                        <input type="range" id="adjustBwGreens" min="-200" max="300" value="40" />
+                        <span id="adjustBwGreensText">40</span>
+                    </div>
+                </div>
+                <div class="adjust-bw-row">
+                    <label for="adjustBwCyans">Niebieskozielony</label>
+                    <div class="adjust-bw-input">
+                        <input type="range" id="adjustBwCyans" min="-200" max="300" value="60" />
+                        <span id="adjustBwCyansText">60</span>
+                    </div>
+                </div>
+                <div class="adjust-bw-row">
+                    <label for="adjustBwBlues">Niebieskości</label>
+                    <div class="adjust-bw-input">
+                        <input type="range" id="adjustBwBlues" min="-200" max="300" value="20" />
+                        <span id="adjustBwBluesText">20</span>
+                    </div>
+                </div>
+                <div class="adjust-bw-row">
+                    <label for="adjustBwMagentas">Karmazyny</label>
+                    <div class="adjust-bw-input">
+                        <input type="range" id="adjustBwMagentas" min="-200" max="300" value="80" />
+                        <span id="adjustBwMagentasText">80</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="adjustLut3DWrap" class="adjust-exposure-wrap hidden">
+                <div class="adjust-control-row">
+                    <label for="adjustLut3DSelect">Plik animacji LUT 3D</label>
+                    <div class="adjust-control-input">
+                        <select id="adjustLut3DSelect">
+                            <option value="none">Inny</option>
+                            <option value="__load__">Wczytaj animację LUT 3D...</option>
+                            <option value="preset:2strip">2Strip.look</option>
+                            <option value="preset:3strip">3Strip.look</option>
+                            <option value="preset:bleach">Bleach Bypass.look</option>
+                            <option value="preset:candle">Candlelight.CUBE</option>
+                            <option value="preset:crispwarm">Crisp_Warm.look</option>
+                            <option value="preset:crispwinter">Crisp_Winter.look</option>
+                            <option value="preset:dropblues">DropBlues.3DL</option>
+                            <option value="preset:edgyamber">EdgyAmber.3DL</option>
+                            <option value="preset:foggynight">FoggyNight.3DL</option>
+                            <option value="preset:futuristic">FuturisticBleak.3DL</option>
+                            <option value="preset:horrorblue">HorrorBlue.3DL</option>
+                            <option value="preset:latesunset">LateSunset.3DL</option>
+                            <option value="preset:moonlight">Moonlight.3DL</option>
+                            <option value="preset:nightfromday">NightFromDay.CUBE</option>
+                            <option value="preset:softwarming">Soft_Warming.look</option>
+                            <option value="preset:tealorange">TealOrangePlusContrast.3DL</option>
+                            <option value="preset:tensiongreen">TensionGreen.3DL</option>
+                        </select>
+                    </div>
+                </div>
+                <input type="file" id="adjustLut3DFile" accept=".cube,.3dl,.look,text/plain" style="display: none" />
+                <div id="adjustLut3DInfo" class="adjust-curves-tip">Brak aktywnego LUT 3D.</div>
+            </div>
+
+            <div id="adjustGradientMapWrap" class="adjust-exposure-wrap hidden">
+                <div id="adjustGradientMapPreview" class="adjust-gradient-preview"></div>
+                <div class="adjust-gradient-row">
+                    <label for="adjustGradientStartColor">Początek</label>
+                    <input type="color" id="adjustGradientStartColor" value="#111111" />
+                </div>
+                <div class="adjust-gradient-row">
+                    <label for="adjustGradientStartOpacity">Widoczność początku</label>
+                    <div class="adjust-gradient-strength">
+                        <input type="range" id="adjustGradientStartOpacity" min="0" max="100" value="100" />
+                        <span id="adjustGradientStartOpacityText">100%</span>
+                    </div>
+                </div>
+                <div class="adjust-gradient-row">
+                    <label for="adjustGradientEndColor">Koniec</label>
+                    <input type="color" id="adjustGradientEndColor" value="#f4f4f4" />
+                </div>
+                <div class="adjust-gradient-row">
+                    <label for="adjustGradientEndOpacity">Widoczność końca</label>
+                    <div class="adjust-gradient-strength">
+                        <input type="range" id="adjustGradientEndOpacity" min="0" max="100" value="100" />
+                        <span id="adjustGradientEndOpacityText">100%</span>
+                    </div>
+                </div>
+                <div class="adjust-gradient-extras-head">
+                    <span>Dodatkowe kolory</span>
+                    <button type="button" id="adjustGradientAddStop">Dodaj kolor</button>
+                </div>
+                <div id="adjustGradientExtraStops" class="adjust-gradient-extras"></div>
+                <template id="adjustGradientExtraStopTemplate">
+                    <div class="adjust-gradient-stop-row">
+                        <input type="color" class="gradient-stop-color" value="#ff8a00" />
+                        <label>Pozycja</label>
+                        <div class="adjust-gradient-position">
+                            <input type="range" class="gradient-stop-position" min="0" max="100" value="50" />
+                            <div class="adjust-gradient-position-number">
+                                <input type="number" class="gradient-stop-position-number" min="0" max="100"
+                                    value="50" />
+                                <span>%</span>
+                            </div>
+                        </div>
+                        <label>Widoczność</label>
+                        <div class="adjust-gradient-strength">
+                            <input type="range" class="gradient-stop-opacity" min="0" max="100" value="100" />
+                            <span class="gradient-stop-opacity-text">100%</span>
+                        </div>
+                        <button type="button" class="gradient-stop-remove">Usuń</button>
+                    </div>
+                </template>
+                <label class="adjust-balance-checkbox">
+                    <input type="checkbox" id="adjustGradientDither" />
+                    <span>Roztrząsanie</span>
+                </label>
+                <label class="adjust-balance-checkbox">
+                    <input type="checkbox" id="adjustGradientReverse" />
+                    <span>Odwróć</span>
+                </label>
+            </div>
+
+            <div class="adjust-control-row">
+                <label id="adjustValueLabel" for="adjustValue">Wartość</label>
+                <div class="adjust-control-input">
+                    <input type="range" id="adjustValue" min="-100" max="100" value="0" />
+                    <span id="adjustValueText">0</span>
+                </div>
+            </div>
+
+            <div id="adjustControlRow2" class="adjust-control-row hidden">
+                <label id="adjustValueLabel2" for="adjustValue2">Kontrast</label>
+                <div class="adjust-control-input">
+                    <input type="range" id="adjustValue2" min="-100" max="100" value="0" />
+                    <span id="adjustValueText2">0%</span>
+                </div>
+            </div>
+
+            <div class="adjust-actions">
+                <button type="button" id="adjustApply">Zastosuj</button>
+                <button type="button" id="adjustCancel">Anuluj</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- GŁÓWNY UKŁAD -->
+    <div class="main-layout hidden">
+        <div class="center-panel">
+            <div class="canvas-wrapper">
+                <div id="canvasGrid" class="canvas-grid hidden"></div>
+                <canvas id="canvas"></canvas>
+            </div>
+            <div id="workspaceRulers" class="workspace-rulers hidden">
+                <div class="ruler-corner"></div>
+                <div id="rulerTop" class="ruler-top"></div>
+                <div id="rulerLeft" class="ruler-left"></div>
+            </div>
+        </div>
+    </div>
+    <div id="workspaceContextMenu" class="workspace-context-menu hidden">
+        <button type="button" id="toggleGridMenuItem">Pokaż siatkę</button>
+        <button type="button" id="toggleRulerMenuItem">Pokaż miarkę</button>
+    </div>
+
+    <!-- PANEL TEKSTU (TYPOGRAFIA) -->
+    <div id="textPanel" class="text-panel hidden">
+        <div class="text-panel-header">
+            <h3>Tekst</h3>
+            <button type="button" id="textPanelClose" class="text-panel-close"
+                aria-label="Zamknij typografię">×</button>
+        </div>
+
+        <div class="text-grid">
+            <div class="text-row">
+                <label for="fontFamily">Czcionka</label>
+                <select id="fontFamily">
+                    <option>Segoe UI</option>
+                    <option>Calibri</option>
+                    <option>Cambria</option>
+                    <option>Consolas</option>
+                    <option>Trebuchet MS</option>
+                    <option>Tahoma</option>
+                    <option>Century Gothic</option>
+                    <option>Garamond</option>
+                    <option>Arial</option>
+                    <option>Comic Sans MS</option>
+                    <option>Courier New</option>
+                    <option>Georgia</option>
+                    <option>Impact</option>
+                    <option>Times New Roman</option>
+                    <option>Verdana</option>
+                </select>
+            </div>
+
+            <div class="text-row double">
+                <div class="text-field">
+                    <label for="fontStyleSelect">Styl</label>
+                    <select id="fontStyleSelect">
+                        <option value="regular">Regular</option>
+                        <option value="light">Light</option>
+                        <option value="semi-bold">Semi Bold</option>
+                        <option value="bold">Bold</option>
+                        <option value="black">Black</option>
+                        <option value="italic">Italic</option>
+                        <option value="bold-italic">Bold Italic</option>
+                    </select>
+                </div>
+                <div class="text-field">
+                    <label for="fontSize">Rozmiar (px)</label>
+                    <input type="number" id="fontSize" value="24" min="6" max="200" />
+                </div>
+            </div>
+
+            <div class="text-row double">
+                <div class="text-field">
+                    <label for="lineHeight">Interlinia (px)</label>
+                    <input type="number" id="lineHeight" value="0" min="0" step="1" placeholder="auto" />
+                </div>
+                <div class="text-field">
+                    <label for="kerning">Kerning</label>
+                    <select id="kerning">
+                        <option value="auto">Metryczny</option>
+                        <option value="none">Brak</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="text-row double">
+                <div class="text-field">
+                    <label for="letterSpacing">Tracking (px)</label>
+                    <input type="number" id="letterSpacing" value="0" step="0.5" />
+                </div>
+                <div class="text-field">
+                    <label for="baselineShift">Przesunięcie bazowej (px)</label>
+                    <input type="number" id="baselineShift" value="0" step="0.5" />
+                </div>
+            </div>
+
+            <div class="text-row double">
+                <div class="text-field">
+                    <label for="scaleX">Skala pozioma (%)</label>
+                    <input type="number" id="scaleX" value="100" min="10" max="400" />
+                </div>
+                <div class="text-field">
+                    <label for="scaleY">Skala pionowa (%)</label>
+                    <input type="number" id="scaleY" value="100" min="10" max="400" />
+                </div>
+            </div>
+
+            <div class="text-row double">
+                <div class="text-field">
+                    <label for="textColor">Kolor</label>
+                    <div class="color-swatch">
+                        <input type="color" id="textColor" value="#000000" />
+                    </div>
+                </div>
+                <div class="text-field align-field">
+                    <label>Wyrównanie</label>
+                    <div class="align-buttons">
+                        <button data-align="left" class="active" aria-label="Wyrównanie do lewej">
+                            <span class="align-icon align-left"></span>
+                        </button>
+                        <button data-align="center" aria-label="Wyrównanie do środka">
+                            <span class="align-icon align-center"></span>
+                        </button>
+                        <button data-align="right" aria-label="Wyrównanie do prawej">
+                            <span class="align-icon align-right"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-row">
+                <div class="style-toggle-row">
+                    <button type="button" data-toggle-style="bold" aria-label="Pogrubienie">B</button>
+                    <button type="button" data-toggle-style="italic" aria-label="Kursywa"><em>I</em></button>
+                    <button type="button" data-toggle-style="underline" aria-label="Podkreślenie">U</button>
+                    <button type="button" data-toggle-style="strike" aria-label="Przekreślenie">S</button>
+                    <button type="button" data-toggle-style="caps" aria-label="Wersaliki">TT</button>
+                    <button type="button" data-toggle-style="smallCaps" aria-label="Kapitaliki">Tt</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL WYMIARÓW -->
+    <div id="dimensionModal" class="dimension-modal">
+        <div class="dimension-modal-content">
+            <h2>Ustaw wymiary obszaru roboczego</h2>
+            <label for="width">Szerokość:</label>
+            <input type="number" id="width" value="512" min="100" />
+            <label for="height">Wysokość:</label>
+            <input type="number" id="height" value="512" min="100" />
+            <button id="setDimensions">Ustaw wymiary</button>
+        </div>
+    </div>
+
+    <div id="transformScaleModal" class="transform-window hidden">
+        <div class="dimension-modal-content transform-modal-content">
+            <h2 class="transform-window-title">Skalowanie warstwy</h2>
+            <div class="transform-grid">
+                <div class="transform-field">
+                    <label for="transformScaleXInput">Poziomo (%)</label>
+                    <input type="number" id="transformScaleXInput" value="100" min="1" max="1000" />
+                </div>
+                <div class="transform-field">
+                    <label for="transformScaleYInput">Pionowo (%)</label>
+                    <input type="number" id="transformScaleYInput" value="100" min="1" max="1000" />
+                </div>
+            </div>
+            <label class="transform-lock-row" for="transformScaleLock">
+                <input type="checkbox" id="transformScaleLock" checked />
+                Łańcuch: skaluj jednostajnie (X = Y)
+            </label>
+            <div class="transform-actions">
+                <button type="button" id="transformScaleManual" class="transform-cancel">Ręcznie</button>
+                <button type="button" id="transformScaleApply">OK</button>
+                <button type="button" id="transformScaleCancel" class="transform-cancel">Anuluj</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="transformRotateModal" class="transform-window hidden">
+        <div class="dimension-modal-content transform-modal-content">
+            <h2 class="transform-window-title">Obrót warstwy</h2>
+            <div class="transform-field">
+                <label for="transformRotateAngleInput">Kąt (stopnie)</label>
+                <input type="number" id="transformRotateAngleInput" value="90" min="-360" max="360" />
+            </div>
+            <input type="range" id="transformRotateAngleRange" min="-180" max="180" value="90" />
+            <div class="transform-actions">
+                <button type="button" id="transformRotateManual" class="transform-cancel">Ręcznie</button>
+                <button type="button" id="transformRotateApply">OK</button>
+                <button type="button" id="transformRotateCancel" class="transform-cancel">Anuluj</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="collabModal" class="transform-window hidden">
+        <div class="dimension-modal-content transform-modal-content collab-modal-content">
+            <h2 class="transform-window-title">Tryb współpraca</h2>
+            <div class="collab-status" id="collabStatus">Status: gotowe</div>
+            <div class="collab-help">
+                <strong>Instrukcja:</strong>
+                <ol>
+                    <li>Podłącz oba komputery do tej samej sieci Wi‑Fi/LAN.</li>
+                    <li>Na komputerze A wpisz nazwę pokoju i kliknij <code>Użyj IPv4 LAN</code>.</li>
+                    <li>Kliknij <code>Kopiuj link zaproszenia</code> i wyślij go komputerowi B.</li>
+                    <li>Na obu komputerach otwórz ten sam link i kliknij <code>Połącz</code>.</li>
+                    <li>Edycja będzie synchronizowana na żywo przez WebSocket.</li>
+                </ol>
+            </div>
+
+            <div class="collab-section">
+                <label>Stałe połączenie (WebSocket)</label>
+                <div class="collab-network-grid">
+                    <input type="text" id="collabServerUrl" placeholder="wss://twoj-serwer/ws" />
+                    <input type="text" id="collabRoomId" placeholder="Pokój, np. projekt-1" value="default" />
+                </div>
+                <div class="collab-inline-actions">
+                    <button type="button" id="collabDetectLanIpv4">Użyj IPv4 LAN</button>
+                    <button type="button" id="collabConnectWs">Połącz</button>
+                    <button type="button" id="collabSyncNow">Wyślij teraz</button>
+                    <button type="button" id="collabDisconnectWs">Rozłącz</button>
+                </div>
+                <div class="collab-peer-info">Połączeni: <strong id="collabPeerCount">0</strong></div>
+                <div class="collab-inline-actions">
+                    <button type="button" id="collabCopyInviteUrl">Kopiuj link zaproszenia</button>
+                </div>
+                <input type="text" id="collabInviteUrl" placeholder="https://twoj-edytor.app/?room=projekt-1"
+                    readonly />
+            </div>
+
+            <div class="transform-actions">
+                <button type="button" id="collabClose" class="transform-cancel">Zamknij</button>
+            </div>
+        </div>
+    </div>
+    <!-- PANEL USTAWIEŃ PĘDZLA -->
+    <div id="brushPanel" class="brush-panel hidden">
+        <div class="brush-panel-header">
+            <div class="brush-panel-title">
+                <span>Ustawienia pędzla</span>
+            </div>
+            <button type="button" id="brushPanelClose" class="panel-close-like-text"
+                aria-label="Zamknij panel pędzla">×</button>
+        </div>
+        <div class="brush-panel-body">
+            <div class="brush-sidebar">
+                <div class="sidebar-header">Kategorie</div>
+                <label class="sidebar-item">
+                    <input type="checkbox" checked />
+                    <span>Kształt końcówki pędzla</span>
+                </label>
+                <label class="sidebar-item">
+                    <input type="checkbox" checked />
+                    <span>Dynamika kształtu</span>
+                </label>
+                <label class="sidebar-item">
+                    <input type="checkbox" checked />
+                    <span>Rozpraszanie</span>
+                </label>
+                <label class="sidebar-item">
+                    <input type="checkbox" checked />
+                    <span>Tekstura</span>
+                </label>
+                <label class="sidebar-item">
+                    <input type="checkbox" checked />
+                    <span>Podwójny pędzel</span>
+                </label>
+                <label class="sidebar-item locked">
+                    <input type="checkbox" checked disabled />
+                    <span>Dynamika koloru</span>
+                </label>
+                <label class="sidebar-item">
+                    <input type="checkbox" checked />
+                    <span>Transfer</span>
+                </label>
+                <label class="sidebar-item">
+                    <input type="checkbox" checked />
+                    <span>Ułożenie pędzla</span>
+                </label>
+                <label class="sidebar-item">
+                    <input type="checkbox" checked />
+                    <span>Szum</span>
+                </label>
+                <label class="sidebar-item">
+                    <input type="checkbox" checked />
+                    <span>Mokre krawędzie</span>
+                </label>
+                <label class="sidebar-item">
+                    <input type="checkbox" />
+                    <span>Nagromadzenie</span>
+                </label>
+                <label class="sidebar-item">
+                    <input type="checkbox" checked />
+                    <span>Wygładzanie</span>
+                </label>
+                <label class="sidebar-item">
+                    <input type="checkbox" />
+                    <span>Zachowaj teksturę</span>
+                </label>
+            </div>
+            <div class="brush-main">
+                <div class="brush-type-grid">
+                    <div class="preset-header">
+                        <span>Typ końcówki</span>
+                        <span class="preset-tip">Wybierz charakter śladu</span>
+                    </div>
+                    <div class="brush-type-list">
+                        <button type="button" class="brush-type-btn active" data-brush-type="round">Okrągły</button>
+                        <button type="button" class="brush-type-btn" data-brush-type="square">Kwadratowy</button>
+                        <button type="button" class="brush-type-btn" data-brush-type="calligraphy">Kaligrafia</button>
+                        <button type="button" class="brush-type-btn" data-brush-type="spray">Spray</button>
+                        <button type="button" class="brush-type-btn" data-brush-type="eraser">Gumka</button>
+                    </div>
+                </div>
+
+                <div class="preset-grid">
+                    <div class="preset-header">
+                        <span>Pędzle podstawowe</span>
+                        <span class="preset-tip">Kliknij, by ustawić rozmiar i twardość</span>
+                    </div>
+                    <div class="preset-list">
+                        <button type="button" class="preset active" data-size="12" data-hardness="100">
+                            <span class="preset-shape soft"></span>
+                            <span class="preset-label">12</span>
+                        </button>
+                        <button type="button" class="preset" data-size="25" data-hardness="60">
+                            <span class="preset-shape soft"></span>
+                            <span class="preset-label">25</span>
+                        </button>
+                        <button type="button" class="preset" data-size="35" data-hardness="30">
+                            <span class="preset-shape softer"></span>
+                            <span class="preset-label">35</span>
+                        </button>
+                        <button type="button" class="preset" data-size="45" data-hardness="10">
+                            <span class="preset-shape softest"></span>
+                            <span class="preset-label">45</span>
+                        </button>
+                        <button type="button" class="preset" data-size="60" data-hardness="80">
+                            <span class="preset-shape hard"></span>
+                            <span class="preset-label">60</span>
+                        </button>
+                        <button type="button" class="preset" data-size="80" data-hardness="100">
+                            <span class="preset-shape hard"></span>
+                            <span class="preset-label">80</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="brush-controls">
+                    <div class="control-row">
+                        <label for="brushSizeControl">Rozmiar</label>
+                        <div class="control-input">
+                            <input type="range" id="brushSizeControl" min="1" max="120" value="15" />
+                            <span id="brushSizeValue">15 px</span>
+                        </div>
+                    </div>
+                    <div class="control-row">
+                        <label for="brushHardnessControl">Twardość</label>
+                        <div class="control-input">
+                            <input type="range" id="brushHardnessControl" min="0" max="100" value="100" />
+                            <span id="brushHardnessValue">100%</span>
+                        </div>
+                    </div>
+                    <div class="control-row inline">
+                        <div class="checkbox-pair">
+                            <label><input type="checkbox" id="brushFlipX" /> Odbij X</label>
+                            <label><input type="checkbox" id="brushFlipY" /> Odbij Y</label>
+                        </div>
+                        <div class="angle-roundness">
+                            <label for="brushAngle">Kąt</label>
+                            <input type="range" id="brushAngle" min="-180" max="180" value="-40" />
+                            <div class="angle-display">
+                                <span id="brushAngleValue">-40°</span>
+                                <div class="angle-preview">
+                                    <div class="angle-dot"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="control-row">
+                        <label for="brushRoundness">Zaokrąglenie</label>
+                        <div class="control-input">
+                            <input type="range" id="brushRoundness" min="1" max="100" value="100" />
+                            <span id="brushRoundnessValue">100%</span>
+                        </div>
+                    </div>
+                    <div class="control-row">
+                        <label for="brushSpacing">Odstępy</label>
+                        <div class="control-input">
+                            <input type="range" id="brushSpacing" min="1" max="200" value="5" />
+                            <span id="brushSpacingValue">5%</span>
+                        </div>
+                    </div>
+                    <div class="control-row checkbox-row">
+                        <label><input type="checkbox" id="brushSmoothing" checked /> Wygładzanie</label>
+                        <label><input type="checkbox" id="brushKeepTexture" /> Zachowaj teksturę</label>
+                    </div>
+                </div>
+
+                <div class="brush-preview">
+                    <div class="brush-preview-label">Podgląd pociągnięcia</div>
+                    <canvas id="brushPreview" width="420" height="90"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SKRYPTY -->
+    <script src="core.js"></script>
+    <script src="ui-adjustments.js"></script>
+    <script src="ui.js"></script>
+    <script src="ui-collab.js?v=20260405f"></script>
+
+</body>
+
+</html>

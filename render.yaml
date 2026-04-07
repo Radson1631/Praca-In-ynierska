@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: inzynierka-collab
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm run start:collab
+    autoDeploy: true
