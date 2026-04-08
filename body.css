@@ -2410,10 +2410,52 @@ canvas {
 }
 
 .collab-modal-content {
-	min-width: 420px;
+	width: min(560px, calc(100vw - 24px));
+	min-width: 0;
 	max-width: 560px;
 	max-height: min(84vh, 760px);
 	overflow: auto;
+	box-sizing: border-box;
+}
+
+.collab-modal-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+
+.collab-modal-header .transform-window-title {
+	margin: 0;
+}
+
+.collab-modal-fold-btn {
+	border: 1px solid #d6c2e2;
+	background: #ffffff;
+	color: #4a225a;
+	border-radius: 8px;
+	padding: 6px 10px;
+	font-size: 0.78rem;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.collab-modal-fold-btn:hover {
+	background: #f6eef9;
+}
+
+.collab-modal-content.collab-collapsed {
+	min-width: 320px;
+	max-width: 420px;
+	max-height: none;
+	overflow: hidden;
+}
+
+.collab-modal-content.collab-collapsed .collab-help,
+.collab-modal-content.collab-collapsed .collab-section,
+.collab-modal-content.collab-collapsed .transform-actions {
+	display: none;
 }
 
 .collab-status {
@@ -2423,6 +2465,8 @@ canvas {
 	border: 1px solid #eadbf3;
 	border-radius: 8px;
 	padding: 8px 10px;
+	overflow-wrap: anywhere;
+	word-break: break-word;
 }
 
 .collab-help {
@@ -2480,6 +2524,16 @@ canvas {
 }
 
 @media (max-width: 640px) {
+	.transform-window {
+		left: 8px;
+		right: 8px;
+	}
+
+	.collab-modal-content {
+		width: auto;
+		max-width: none;
+	}
+
 	.collab-network-grid {
 		grid-template-columns: 1fr;
 	}

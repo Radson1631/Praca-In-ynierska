@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Radstrowo</title>
-    <link rel="stylesheet" href="body.css" />
+    <link rel="stylesheet" href="body.css?v=20260408b" />
 </head>
 
 <body>
@@ -882,8 +882,12 @@
     </div>
 
     <div id="collabModal" class="transform-window hidden">
-        <div class="dimension-modal-content transform-modal-content collab-modal-content">
-            <h2 class="transform-window-title">Tryb współpraca</h2>
+        <div id="collabModalContent" class="dimension-modal-content transform-modal-content collab-modal-content">
+            <div class="collab-modal-header">
+                <h2 class="transform-window-title">Tryb współpraca</h2>
+                <button type="button" id="collabFoldToggle" class="collab-modal-fold-btn"
+                    aria-expanded="true">Zwiń</button>
+            </div>
             <div class="collab-status" id="collabStatus">Status: gotowe</div>
             <div class="collab-help">
                 <strong>Instrukcja:</strong>
@@ -1099,7 +1103,7 @@
     <script src="core.js"></script>
     <script src="ui-adjustments.js"></script>
     <script src="ui.js"></script>
-    <script src="ui-collab.js?v=20260405f"></script>
+    <script src="ui-collab.js?v=20260408a"></script>
 
 </body>
 

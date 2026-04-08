@@ -41,6 +41,8 @@
 	const collabPeerCount = document.getElementById("collabPeerCount");
 	const collabCopyInviteUrl = document.getElementById("collabCopyInviteUrl");
 	const collabInviteUrl = document.getElementById("collabInviteUrl");
+	const collabModalContent = document.getElementById("collabModalContent");
+	const collabFoldToggle = document.getElementById("collabFoldToggle");
 
 	if (!collabModal || !collabStatus) return;
 
@@ -134,7 +136,62 @@
 	const getLayerCount = snapshot =>
 		Array.isArray(snapshot?.layers) ? snapshot.layers.length : 0;
 
+	const setCollabCollapsed = collapsed => {
+		if (!collabModalContent || !collabFoldToggle) return;
+		const isCollapsed = !!collapsed;
+		collabModalContent.classList.toggle("collab-collapsed", isCollapsed);
+		collabFoldToggle.textContent = isCollapsed ? "Rozwiń" : "Zwiń";
+		collabFoldToggle.setAttribute("aria-expanded", String(!isCollapsed));
+	};
+
+	const toggleCollabCollapsed = () => {
+		if (!collabModalContent) return;
+		setCollabCollapsed(!collabModalContent.classList.contains("collab-collapsed"));
+	};
+
+	const makeCollabModalDraggable = () => {
+		if (!collabModal) return;
+		const handle = collabModal.querySelector(".transform-window-title");
+		if (!handle || handle.dataset.dragBound === "1") return;
+		handle.dataset.dragBound = "1";
+
+		let dragging = false;
+		let offsetX = 0;
+		let offsetY = 0;
+
+		handle.addEventListener("mousedown", event => {
+			if (event.button !== 0) return;
+			const rect = collabModal.getBoundingClientRect();
+			collabModal.style.left = `${rect.left}px`;
+			collabModal.style.top = `${rect.top}px`;
+			collabModal.style.right = "auto";
+			offsetX = event.clientX - rect.left;
+			offsetY = event.clientY - rect.top;
+			dragging = true;
+			document.body.style.userSelect = "none";
+			event.preventDefault();
+		});
+
+		document.addEventListener("mousemove", event => {
+			if (!dragging) return;
+			const margin = 8;
+			const maxX = Math.max(margin, window.innerWidth - collabModal.offsetWidth - margin);
+			const maxY = Math.max(margin, window.innerHeight - collabModal.offsetHeight - margin);
+			const nextX = Math.max(margin, Math.min(maxX, event.clientX - offsetX));
+			const nextY = Math.max(margin, Math.min(maxY, event.clientY - offsetY));
+			collabModal.style.left = `${nextX}px`;
+			collabModal.style.top = `${nextY}px`;
+		});
+
+		document.addEventListener("mouseup", () => {
+			if (!dragging) return;
+			dragging = false;
+			document.body.style.userSelect = "";
+		});
+	};
+
 	// Uproszczony tryb: tylko kod stanu (bez WebRTC host/guest).
+	makeCollabModalDraggable();
 	const isSimpleMode = Boolean(
 		collabServerUrl &&
 		collabConnectWs &&
@@ -149,6 +206,7 @@
 		const openSimple = event => {
 			if (event) event.preventDefault();
 			collabModal.classList.remove("hidden");
+			setCollabCollapsed(false);
 		};
 		const closeSimple = () => {
 			collabModal.classList.add("hidden");
@@ -381,6 +439,7 @@
 
 		menuCollaborate?.addEventListener("click", openSimple);
 		collabClose?.addEventListener("click", closeSimple);
+		collabFoldToggle?.addEventListener("click", toggleCollabCollapsed);
 		collabConnectWs?.addEventListener("click", () => {
 			connectWs();
 		});
@@ -530,6 +589,7 @@
 	const openCollabModal = event => {
 		if (event) event.preventDefault();
 		collabModal.classList.remove("hidden");
+		setCollabCollapsed(false);
 	};
 
 	const closeCollabModal = () => {
@@ -814,6 +874,7 @@
 	const bindEvents = () => {
 		menuCollaborate?.addEventListener("click", openCollabModal);
 		collabClose?.addEventListener("click", closeCollabModal);
+		collabFoldToggle?.addEventListener("click", toggleCollabCollapsed);
 		collabDisconnect?.addEventListener("click", closeConnection);
 		collabHostStart?.addEventListener("click", startAsHost);
 		collabHostApplyAnswer?.addEventListener("click", applyHostAnswer);
