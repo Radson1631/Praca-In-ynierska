@@ -577,7 +577,10 @@ body {
 	display: flex;
 	flex-direction: column;
 	z-index: 2400;
-	width: 170px;
+	min-width: 120px;
+	width: max-content;
+	max-width: calc(100vw - 24px);
+	overflow: hidden;
 }
 
 .brush-options button {
@@ -717,6 +720,31 @@ body {
 
 .select-options button:hover {
 	background-color: #e5cbe5;
+}
+
+/* Wspólne ograniczenia dropdownów narzędzi:
+   nie wychodzą poza viewport i nie rozpychają panelu. */
+.shape-options,
+.zoom-options,
+.brush-options,
+.repair-options,
+.pen-options,
+.select-options {
+	min-width: 120px;
+	width: max-content;
+	max-width: min(280px, calc(100vw - 24px));
+	overflow: hidden;
+}
+
+.shape-options button,
+.zoom-options button,
+.brush-options button,
+.repair-options button,
+.pen-options button,
+.select-options button {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 /* kolory */

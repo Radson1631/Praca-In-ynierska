@@ -1164,8 +1164,8 @@
 		currentRepairTool = tool;
 		if (repairToolBtn) {
 			const labels = {
-				spot: "Korekta (Ctrl+klik: punkt źródła)",
-				heal: "Pędzel korygujący (otoczenie)",
+				spot: "Punktowy pędzel korygujący (Ctrl+klik: punkt źródła)",
+				heal: "Pędzel korygujący (automatyczne próbkowanie otoczenia)",
 				patch: "Łatka (lasso, Ctrl+przeciągnij: przesuń zaznaczenie)",
 			};
 			repairToolBtn.title = labels[tool] || "Korekta";
@@ -1980,6 +1980,96 @@ function commitTextFromOverlay() {
 		};
 	}
 
+	function sampleRingStats(data, width, height, cx, cy, innerR, outerR) {
+		const x0 = Math.max(0, Math.floor(cx - outerR));
+		const x1 = Math.min(width - 1, Math.ceil(cx + outerR));
+		const y0 = Math.max(0, Math.floor(cy - outerR));
+		const y1 = Math.min(height - 1, Math.ceil(cy + outerR));
+		const inner2 = innerR * innerR;
+		const outer2 = outerR * outerR;
+		let sr = 0;
+		let sg = 0;
+		let sb = 0;
+		let srr = 0;
+		let sgg = 0;
+		let sbb = 0;
+		let count = 0;
+		for (let yy = y0; yy <= y1; yy++) {
+			for (let xx = x0; xx <= x1; xx++) {
+				const dx = xx - cx;
+				const dy = yy - cy;
+				const d2 = dx * dx + dy * dy;
+				if (d2 < inner2 || d2 > outer2) continue;
+				const i = (yy * width + xx) * 4;
+				const r = data[i];
+				const g = data[i + 1];
+				const b = data[i + 2];
+				sr += r;
+				sg += g;
+				sb += b;
+				srr += r * r;
+				sgg += g * g;
+				sbb += b * b;
+				count++;
+			}
+		}
+		if (!count) {
+			return sampleNeighborhoodStats(data, width, height, cx, cy, Math.max(2, outerR));
+		}
+		const mr = sr / count;
+		const mg = sg / count;
+		const mb = sb / count;
+		const vr = Math.max(1, srr / count - mr * mr);
+		const vg = Math.max(1, sgg / count - mg * mg);
+		const vb = Math.max(1, sbb / count - mb * mb);
+		return {
+			mean: { r: mr, g: mg, b: mb },
+			std: { r: Math.sqrt(vr), g: Math.sqrt(vg), b: Math.sqrt(vb) },
+			lumaStd: Math.sqrt((vr + vg + vb) / 3),
+		};
+	}
+
+	function findBestAutoRepairSource(data, width, height, cx, cy, radius) {
+		const target = sampleRingStats(data, width, height, cx, cy, radius * 0.8, radius * 2.15);
+		const minDist = Math.max(3, radius * 1.1);
+		const maxDist = Math.max(minDist + 1, radius * 3.4);
+		let best = null;
+		const radialSamples = 3;
+		const angleSamples = 16;
+		for (let rStep = 0; rStep < radialSamples; rStep++) {
+			const t = radialSamples > 1 ? rStep / (radialSamples - 1) : 0;
+			const dist = minDist + (maxDist - minDist) * t;
+			for (let i = 0; i < angleSamples; i++) {
+				const angle = (Math.PI * 2 * i) / angleSamples;
+				const sx = Math.round(cx + Math.cos(angle) * dist);
+				const sy = Math.round(cy + Math.sin(angle) * dist);
+				if (sx < 0 || sy < 0 || sx >= width || sy >= height) continue;
+				const candidate = sampleNeighborhoodStats(
+					data,
+					width,
+					height,
+					sx,
+					sy,
+					Math.max(2, radius * 1.05),
+				);
+				const meanDiff =
+					Math.abs(candidate.mean.r - target.mean.r) +
+					Math.abs(candidate.mean.g - target.mean.g) +
+					Math.abs(candidate.mean.b - target.mean.b);
+				const stdDiff =
+					Math.abs(candidate.std.r - target.std.r) +
+					Math.abs(candidate.std.g - target.std.g) +
+					Math.abs(candidate.std.b - target.std.b);
+				const lumaDiff = Math.abs(candidate.lumaStd - target.lumaStd);
+				const score = meanDiff + stdDiff * 0.8 + lumaDiff * 0.6;
+				if (!best || score < best.score) {
+					best = { x: sx, y: sy, score };
+				}
+			}
+		}
+		return best ? { x: best.x, y: best.y } : null;
+	}
+
 	function adaptiveRepairRadius(data, width, height, x, y, size) {
 		const base = Math.max(2, size * 0.5);
 		const stats = sampleNeighborhoodStats(data, width, height, x, y, base * 1.3);
@@ -2004,6 +2094,20 @@ function commitTextFromOverlay() {
 		const src = source.data;
 		const radius = adaptiveRepairRadius(dst, width, height, cx, cy, size);
 		const hard = Math.max(0.05, Math.min(1, hardness / 100));
+		const autoSource = findBestAutoRepairSource(src, width, height, cx, cy, radius);
+		if (autoSource) {
+			applyHealingStamp(
+				work,
+				source,
+				cx,
+				cy,
+				autoSource.x,
+				autoSource.y,
+				size,
+				Math.max(55, hardness),
+			);
+			return;
+		}
 		const avg = sampleRingAverage(src, width, height, cx, cy, radius * 0.65, radius * 2.0);
 		const aroundStats = sampleNeighborhoodStats(dst, width, height, cx, cy, radius * 1.25);
 		const x0 = Math.max(0, Math.floor(cx - radius));
@@ -2113,6 +2217,65 @@ function commitTextFromOverlay() {
 		return minDist;
 	}
 
+	function samplePolygonStats(data, width, height, polygon, offsetX = 0, offsetY = 0) {
+		const bounds = getPolygonBounds(polygon);
+		if (!bounds) {
+			return {
+				mean: { r: 0, g: 0, b: 0 },
+				std: { r: 1, g: 1, b: 1 },
+				lumaStd: 1,
+			};
+		}
+		const x0 = Math.max(0, bounds.x);
+		const y0 = Math.max(0, bounds.y);
+		const x1 = Math.min(width - 1, bounds.x + bounds.w);
+		const y1 = Math.min(height - 1, bounds.y + bounds.h);
+		let sr = 0;
+		let sg = 0;
+		let sb = 0;
+		let srr = 0;
+		let sgg = 0;
+		let sbb = 0;
+		let count = 0;
+		for (let dy = y0; dy <= y1; dy++) {
+			for (let dx = x0; dx <= x1; dx++) {
+				if (!pointInPolygon(dx + 0.5, dy + 0.5, polygon)) continue;
+				const sx = Math.round(dx + offsetX);
+				const sy = Math.round(dy + offsetY);
+				if (sx < 0 || sy < 0 || sx >= width || sy >= height) continue;
+				const i = (sy * width + sx) * 4;
+				const r = data[i];
+				const g = data[i + 1];
+				const b = data[i + 2];
+				sr += r;
+				sg += g;
+				sb += b;
+				srr += r * r;
+				sgg += g * g;
+				sbb += b * b;
+				count++;
+			}
+		}
+		if (!count) {
+			return {
+				mean: { r: 0, g: 0, b: 0 },
+				std: { r: 1, g: 1, b: 1 },
+				lumaStd: 1,
+			};
+		}
+		const mr = sr / count;
+		const mg = sg / count;
+		const mb = sb / count;
+		const vr = Math.max(1, srr / count - mr * mr);
+		const vg = Math.max(1, sgg / count - mg * mg);
+		const vb = Math.max(1, sbb / count - mb * mb);
+		return {
+			mean: { r: mr, g: mg, b: mb },
+			std: { r: Math.sqrt(vr), g: Math.sqrt(vg), b: Math.sqrt(vb) },
+			lumaStd: Math.sqrt((vr + vg + vb) / 3),
+		};
+	}
+
 	function applyPatchFromPolygon(work, source, dstPolygon, offsetX, offsetY) {
 		if (!work || !source || !Array.isArray(dstPolygon) || dstPolygon.length < 3) return;
 		const width = work.width;
@@ -2122,6 +2285,8 @@ function commitTextFromOverlay() {
 		const bounds = getPolygonBounds(dstPolygon);
 		if (!bounds) return;
 		const feather = Math.max(5, Math.round(Math.min(bounds.w, bounds.h) * 0.14));
+		const dstStats = samplePolygonStats(dst, width, height, dstPolygon, 0, 0);
+		const srcStats = samplePolygonStats(src, width, height, dstPolygon, offsetX, offsetY);
 		const x0 = Math.max(0, bounds.x);
 		const y0 = Math.max(0, bounds.y);
 		const x1 = Math.min(width - 1, bounds.x + bounds.w);
@@ -2140,12 +2305,21 @@ function commitTextFromOverlay() {
 				const srcR = src[si];
 				const srcG = src[si + 1];
 				const srcB = src[si + 2];
+				const nr =
+					((srcR - srcStats.mean.r) / Math.max(1, srcStats.std.r)) * dstStats.std.r +
+					dstStats.mean.r;
+				const ng =
+					((srcG - srcStats.mean.g) / Math.max(1, srcStats.std.g)) * dstStats.std.g +
+					dstStats.mean.g;
+				const nb =
+					((srcB - srcStats.mean.b) / Math.max(1, srcStats.std.b)) * dstStats.std.b +
+					dstStats.mean.b;
 				const lumDst = 0.299 * dst[di] + 0.587 * dst[di + 1] + 0.114 * dst[di + 2];
-				const lumSrc = 0.299 * srcR + 0.587 * srcG + 0.114 * srcB;
-				const dl = (lumDst - lumSrc) * 0.65;
-				dst[di] = clampByte(dst[di] * (1 - a) + (srcR + dl) * a);
-				dst[di + 1] = clampByte(dst[di + 1] * (1 - a) + (srcG + dl) * a);
-				dst[di + 2] = clampByte(dst[di + 2] * (1 - a) + (srcB + dl) * a);
+				const lumSrc = 0.299 * nr + 0.587 * ng + 0.114 * nb;
+				const dl = (lumDst - lumSrc) * 0.55;
+				dst[di] = clampByte(dst[di] * (1 - a) + (nr + dl) * a);
+				dst[di + 1] = clampByte(dst[di + 1] * (1 - a) + (ng + dl) * a);
+				dst[di + 2] = clampByte(dst[di + 2] * (1 - a) + (nb + dl) * a);
 			}
 		}
 	}
@@ -7524,17 +7698,6 @@ if (fillColorInput) {
 				brush.size,
 				brush.spacingPercent,
 				(sx, sy) => {
-					if (currentRepairTool === "heal") {
-						applySpotRepairStamp(
-							repairWorkingImageData,
-							repairSourceImageData,
-							sx,
-							sy,
-							brush.size,
-							brush.hardness,
-						);
-						return;
-					}
 					if (currentRepairTool === "spot") {
 						applyHealingStamp(
 							repairWorkingImageData,
@@ -7543,6 +7706,17 @@ if (fillColorInput) {
 							sy,
 							sx + repairSourceOffsetX,
 							sy + repairSourceOffsetY,
+							brush.size,
+							brush.hardness,
+						);
+						return;
+					}
+					if (currentRepairTool === "heal") {
+						applySpotRepairStamp(
+							repairWorkingImageData,
+							repairSourceImageData,
+							sx,
+							sy,
 							brush.size,
 							brush.hardness,
 						);
