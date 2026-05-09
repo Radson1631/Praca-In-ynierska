@@ -1354,10 +1354,61 @@ function commitTextOverlayToLayer() {
 function buildCanvasFont(options = {}) {
 	const size = Math.max(1, parseInt(options.fontSize, 10) || 24);
 	const baseFamily = options.fontFamily || "Segoe UI";
-	const weight = options.bold ? 700 : 400;
-	const style = options.italic ? "italic" : "normal";
+	let presetWeight = 400;
+	let presetStyle = "normal";
+	switch (options.fontStyle) {
+		case "light":
+			presetWeight = 300;
+			break;
+		case "semi-bold":
+			presetWeight = 600;
+			break;
+		case "bold":
+			presetWeight = 700;
+			break;
+		case "black":
+			presetWeight = 800;
+			break;
+		case "italic":
+			presetStyle = "italic";
+			break;
+		case "bold-italic":
+			presetWeight = 700;
+			presetStyle = "italic";
+			break;
+		default:
+			break;
+	}
+	const weight = options.bold ? Math.max(700, presetWeight) : presetWeight;
+	const style = options.italic || presetStyle === "italic" ? "italic" : "normal";
 	const variant = options.smallCaps ? "small-caps" : "normal";
 	return { fontString: `${style} ${variant} ${weight} ${size}px ${baseFamily}`, size };
+}
+
+function normalizeTextRuns(text, runs) {
+	if (!Array.isArray(runs) || !runs.length) return [];
+	const len = (text || "").length;
+	const out = [];
+	for (const run of runs) {
+		if (!run || typeof run.start !== "number" || typeof run.end !== "number")
+			continue;
+		const start = Math.max(0, Math.min(len, run.start | 0));
+		const end = Math.max(0, Math.min(len, run.end | 0));
+		if (end <= start) continue;
+		out.push({ start, end, style: { ...(run.style || {}) } });
+	}
+	out.sort((a, b) => a.start - b.start || a.end - b.end);
+	return out;
+}
+
+function getStyleForIndex(baseOptions, runs, index) {
+	let style = { ...baseOptions };
+	for (const run of runs) {
+		if (index >= run.start && index < run.end) {
+			style = { ...style, ...run.style };
+		}
+	}
+	return style;
 }
 
 function applyTextBox(rect, rawText, options = {}) {
@@ -1391,7 +1442,7 @@ function applyTextBox(rect, rawText, options = {}) {
 	const ctx = layer.ctx;
 	ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
-	const { fontString, size } = buildCanvasFont(options);
+	const { size } = buildCanvasFont(options);
 	const align = options.align || "left";
 	const color = options.color || "#000000";
 	const lineHeight =
@@ -1403,21 +1454,84 @@ function applyTextBox(rect, rawText, options = {}) {
 	const scaleY = (options.scaleY || 100) / 100;
 
 	ctx.save();
-	ctx.fillStyle = color;
 	ctx.textBaseline = "top";
-	ctx.textAlign = align;
-	ctx.font = fontString;
+	ctx.textAlign = "left";
 
 	// transform so the text respects scale sliders
 	ctx.translate(norm.x, norm.y);
 	ctx.scale(scaleX, scaleY);
 
+	const textRuns = normalizeTextRuns(text, options.textRuns);
 	let y = padding;
 	const lines = text.split("\n");
+	let lineStartIndex = 0;
 	for (const line of lines) {
-		const x = align === "center" ? norm.w / 2 : align === "right" ? norm.w - padding : padding;
-		ctx.fillText(line, x, y);
-		y += lineHeight;
+		const segments = [];
+		if (line.length === 0) {
+			segments.push({
+				text: "",
+				style: { ...options, color },
+			});
+		} else {
+			let segmentStart = 0;
+			let currentStyle = getStyleForIndex(
+				{ ...options, color },
+				textRuns,
+				lineStartIndex,
+			);
+			for (let i = 1; i <= line.length; i++) {
+				const nextStyle =
+					i < line.length
+						? getStyleForIndex(
+								{ ...options, color },
+								textRuns,
+								lineStartIndex + i,
+							)
+						: null;
+				const styleChanged =
+					!nextStyle ||
+					JSON.stringify(nextStyle) !== JSON.stringify(currentStyle);
+				if (styleChanged) {
+					segments.push({
+						text: line.slice(segmentStart, i),
+						style: { ...currentStyle },
+					});
+					segmentStart = i;
+					if (nextStyle) currentStyle = nextStyle;
+				}
+			}
+		}
+
+		let lineWidth = 0;
+		let maxLineHeight = lineHeight;
+		for (const seg of segments) {
+			const segFont = buildCanvasFont(seg.style);
+			ctx.font = segFont.fontString;
+			lineWidth += ctx.measureText(seg.text).width;
+			const segLineHeight =
+				typeof seg.style.lineHeight === "number" && seg.style.lineHeight > 0
+					? seg.style.lineHeight
+					: segFont.size + 4;
+			maxLineHeight = Math.max(maxLineHeight, segLineHeight);
+		}
+
+		let cursorX = padding;
+		if (align === "center") cursorX = (norm.w - lineWidth) / 2;
+		if (align === "right") cursorX = norm.w - padding - lineWidth;
+
+		for (const seg of segments) {
+			const segFont = buildCanvasFont(seg.style);
+			ctx.font = segFont.fontString;
+			ctx.fillStyle = seg.style.color || color;
+			const baselineShift =
+				typeof seg.style.baselineShift === "number" ? seg.style.baselineShift : 0;
+			const renderText = seg.style.allCaps ? seg.text.toUpperCase() : seg.text;
+			ctx.fillText(renderText, cursorX, y + baselineShift);
+			cursorX += ctx.measureText(seg.text).width;
+		}
+
+		y += maxLineHeight;
+		lineStartIndex += line.length + 1;
 	}
 
 	ctx.restore();
@@ -1431,6 +1545,7 @@ function applyTextBox(rect, rawText, options = {}) {
 		color,
 		align,
 		options: { ...options },
+		runs: textRuns,
 	};
 
 	saveState();
