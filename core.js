@@ -1391,7 +1391,58 @@ function buildCanvasFont(options = {}) {
 	const weight = options.bold ? Math.max(700, presetWeight) : presetWeight;
 	const style = options.italic || presetStyle === "italic" ? "italic" : "normal";
 	const variant = options.smallCaps ? "small-caps" : "normal";
-	return { fontString: `${style} ${variant} ${weight} ${size}px ${baseFamily}`, size };
+	return {
+		fontString: `${style} ${variant} ${weight} ${size}px ${baseFamily}`,
+		size,
+		weight,
+		style,
+	};
+}
+
+function shouldSyntheticBold(style = {}, fontInfo = {}) {
+	const fontStyle = style.fontStyle || "regular";
+	return (
+		!!style.bold ||
+		fontStyle === "bold" ||
+		fontStyle === "bold-italic" ||
+		fontStyle === "black" ||
+		Number(fontInfo.weight || 400) >= 700
+	);
+}
+
+function shouldSyntheticItalic(style = {}, fontInfo = {}) {
+	const fontStyle = style.fontStyle || "regular";
+	return (
+		!!style.italic ||
+		fontStyle === "italic" ||
+		fontStyle === "bold-italic" ||
+		fontInfo.style === "italic"
+	);
+}
+
+function fillStyledCanvasText(ctx, text, x, y, style = {}, fontInfo = {}) {
+	const useBold = shouldSyntheticBold(style, fontInfo);
+	const useItalic = shouldSyntheticItalic(style, fontInfo);
+	const boldOffset = Math.max(0.45, Math.min(1.15, fontInfo.size / 34));
+	const drawOnce = (dx = 0, dy = 0) => ctx.fillText(text, dx, dy);
+
+	ctx.save();
+	if (useItalic) {
+		ctx.translate(x, y);
+		ctx.transform(1, 0, -0.2, 1, 0, 0);
+		drawOnce(0, 0);
+		if (useBold) {
+			drawOnce(boldOffset, 0);
+			drawOnce(0, boldOffset * 0.35);
+		}
+	} else {
+		drawOnce(x, y);
+		if (useBold) {
+			drawOnce(x + boldOffset, y);
+			drawOnce(x, y + boldOffset * 0.35);
+		}
+	}
+	ctx.restore();
 }
 
 function normalizeTextRuns(text, runs) {
@@ -1535,7 +1586,14 @@ function applyTextBox(rect, rawText, options = {}) {
 			const baselineShift =
 				typeof seg.style.baselineShift === "number" ? seg.style.baselineShift : 0;
 			const renderText = seg.style.allCaps ? seg.text.toUpperCase() : seg.text;
-			ctx.fillText(renderText, cursorX, y + baselineShift);
+			fillStyledCanvasText(
+				ctx,
+				renderText,
+				cursorX,
+				y + baselineShift,
+				seg.style,
+				segFont,
+			);
 			cursorX += ctx.measureText(seg.text).width;
 		}
 
