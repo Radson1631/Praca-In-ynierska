@@ -1351,9 +1351,18 @@ function commitTextOverlayToLayer() {
 	updateLayerList();
 }
 
+function formatCanvasFontFamily(family) {
+	const base = String(family || "Segoe UI").trim() || "Segoe UI";
+	if (/^(['"]).*\1$/.test(base) || /,/.test(base)) return base;
+	if (/[^a-zA-Z0-9_-]/.test(base)) {
+		return `"${base.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+	}
+	return base;
+}
+
 function buildCanvasFont(options = {}) {
 	const size = Math.max(1, parseInt(options.fontSize, 10) || 24);
-	const baseFamily = options.fontFamily || "Segoe UI";
+	const baseFamily = formatCanvasFontFamily(options.fontFamily);
 	let presetWeight = 400;
 	let presetStyle = "normal";
 	switch (options.fontStyle) {

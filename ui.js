@@ -368,6 +368,10 @@
 	let editingTextLayerIndex = null;
 	let editingTextBaseOptions = null;
 	let editingTextStyleRuns = [];
+	let editingTextSelectionStart = 0;
+	let editingTextSelectionEnd = 0;
+	let textPanelSelectionHookBound = false;
+	let isRenderingTextOverlay = false;
 
 	toolbarToggle = document.getElementById("toolbarToggle");
 
@@ -1323,8 +1327,12 @@ window.showShapePanelForLayer = showShapePanelForLayer;
     const scaleX = wrapper.clientWidth  / canvas.width;
     const scaleY = wrapper.clientHeight / canvas.height;
 
-	textOverlay = document.createElement("textarea");
+	textOverlay = document.createElement("div");
 	textOverlay.className = "text-overlay";
+	textOverlay.contentEditable = "true";
+	textOverlay.setAttribute("role", "textbox");
+	textOverlay.setAttribute("aria-multiline", "true");
+	textOverlay.spellcheck = false;
 	if (!editingTextBaseOptions) {
 		updateEditingBaseOptionsFromControls();
 	}
@@ -1345,22 +1353,282 @@ window.showShapePanelForLayer = showShapePanelForLayer;
 	["mousedown", "mouseup", "mousemove", "click"].forEach(ev => {
 		textOverlay.addEventListener(ev, e => e.stopPropagation());
 	});
+	const rememberSelection = (force = false) => {
+		if (!textOverlay) return;
+		const offsets = getTextOverlaySelectionOffsets();
+		const start = offsets ? offsets.start : editingTextSelectionStart | 0;
+		const end = offsets ? offsets.end : editingTextSelectionEnd | 0;
+		// Zachowujemy tylko rzeczywiste zaznaczenie, aby kliknięcie w panel
+		// typografii nie kasowało ostatniego zakresu.
+		if (force || end > start) {
+			editingTextSelectionStart = start;
+			editingTextSelectionEnd = end;
+		}
+	};
+	textOverlay.addEventListener("select", rememberSelection);
+	textOverlay.addEventListener("keyup", rememberSelection);
+	textOverlay.addEventListener("mouseup", rememberSelection);
+	textOverlay.addEventListener("blur", rememberSelection);
 	textOverlay.addEventListener("input", () => {
+		if (isRenderingTextOverlay) return;
 		// Uproszczenie: po zmianie treści czyścimy zakresy stylów,
 		// bo indeksy znaków mogły się przesunąć.
 		editingTextStyleRuns = [];
+		const offsets = getTextOverlaySelectionOffsets();
+		editingTextSelectionStart = offsets ? offsets.start : 0;
+		editingTextSelectionEnd = offsets ? offsets.end : editingTextSelectionStart;
 	});
+	textOverlay.addEventListener("keydown", e => {
+		if (e.key !== "Enter" || !e.shiftKey) return;
+		e.preventDefault();
+		const sel = window.getSelection();
+		if (!sel || sel.rangeCount === 0) return;
+		const range = sel.getRangeAt(0);
+		range.deleteContents();
+		const br = document.createElement("br");
+		range.insertNode(br);
+		range.setStartAfter(br);
+		range.setEndAfter(br);
+		sel.removeAllRanges();
+		sel.addRange(range);
+		editingTextStyleRuns = [];
+		const offsets = getTextOverlaySelectionOffsets();
+		editingTextSelectionStart = offsets ? offsets.start : 0;
+		editingTextSelectionEnd = editingTextSelectionStart;
+	});
+	if (textPanel && !textPanelSelectionHookBound) {
+		textPanel.addEventListener(
+			"mousedown",
+			() => {
+				// mousedown w panelu typografii następuje przed utratą fokusu
+				// przez textarea, więc to najpewniejszy moment na zapis zakresu.
+				rememberSelection();
+			},
+			true,
+		);
+		textPanelSelectionHookBound = true;
+	}
 
     wrapper.appendChild(textOverlay);
 
     requestAnimationFrame(() => {
         if (textOverlay) {
             textOverlay.focus();
-            const len = textOverlay.value.length;
-            textOverlay.setSelectionRange(len, len);
+            const len = getTextOverlayText().length;
+            setTextOverlaySelectionRange(len, len);
+			editingTextSelectionStart = len;
+			editingTextSelectionEnd = len;
         }
     });
 }
+
+	function styleValueToCss(style = {}) {
+		const fontInfo = getFontStyleInfo(style.fontStyle || "regular");
+		const weight = style.bold ? Math.max(700, fontInfo.weight) : fontInfo.weight;
+		const fontStyle = style.italic || fontInfo.style === "italic" ? "italic" : "normal";
+		const fontSize = Math.max(1, parseInt(style.fontSize, 10) || 24);
+		const decorations = [];
+		if (style.underline) decorations.push("underline");
+		if (style.strike) decorations.push("line-through");
+		return {
+			fontFamily: `${style.fontFamily || "Segoe UI"}, ${fontFallbackStack}`,
+			fontSize: `${fontSize}px`,
+			fontWeight: String(weight),
+			fontStyle,
+			fontVariant: style.smallCaps ? "small-caps" : "normal",
+			letterSpacing: `${parseFloat(style.letterSpacing) || 0}px`,
+			color: style.color || "#000000",
+			textDecoration: decorations.join(" "),
+			textTransform: style.allCaps ? "uppercase" : "none",
+		};
+	}
+
+	function applyStyleObjectToElement(el, style = {}) {
+		const css = styleValueToCss(style);
+		Object.keys(css).forEach(key => {
+			el.style[key] = css[key];
+		});
+	}
+
+	function getTextOverlayText() {
+		if (!textOverlay) return "";
+		let text = "";
+		const walk = node => {
+			if (node.nodeType === Node.TEXT_NODE) {
+				text += node.nodeValue || "";
+				return;
+			}
+			if (node.nodeName === "BR") {
+				if (node.dataset?.emptyPlaceholder === "true") return;
+				text += "\n";
+				return;
+			}
+			node.childNodes.forEach(walk);
+		};
+		textOverlay.childNodes.forEach(walk);
+		return text.replace(/\u00a0/g, " ");
+	}
+
+	function appendStyledTextFragment(parent, text, style) {
+		const span = document.createElement("span");
+		applyStyleObjectToElement(span, style);
+		const parts = String(text).split("\n");
+		parts.forEach((part, index) => {
+			if (index > 0) span.appendChild(document.createElement("br"));
+			if (part) span.appendChild(document.createTextNode(part));
+		});
+		parent.appendChild(span);
+	}
+
+	function getTextStyleForOverlayIndex(index) {
+		let style = {
+			...(editingTextBaseOptions || cloneTypographyOptionsForText(collectTypographyOptions())),
+		};
+		for (const run of editingTextStyleRuns) {
+			if (index >= run.start && index < run.end) {
+				style = { ...style, ...(run.style || {}) };
+			}
+		}
+		return style;
+	}
+
+	function renderTextOverlayRich() {
+		if (!textOverlay) return;
+		const text = getTextOverlayText();
+		isRenderingTextOverlay = true;
+		textOverlay.textContent = "";
+		if (!text) {
+			const br = document.createElement("br");
+			br.dataset.emptyPlaceholder = "true";
+			textOverlay.appendChild(br);
+			isRenderingTextOverlay = false;
+			return;
+		}
+		let segmentStart = 0;
+		let currentStyle = getTextStyleForOverlayIndex(0);
+		for (let i = 1; i <= text.length; i++) {
+			const nextStyle = i < text.length ? getTextStyleForOverlayIndex(i) : null;
+			if (!nextStyle || JSON.stringify(nextStyle) !== JSON.stringify(currentStyle)) {
+				appendStyledTextFragment(
+					textOverlay,
+					text.slice(segmentStart, i),
+					currentStyle,
+				);
+				segmentStart = i;
+				if (nextStyle) currentStyle = nextStyle;
+			}
+		}
+		isRenderingTextOverlay = false;
+	}
+
+	function setTextOverlayText(text) {
+		if (!textOverlay) return;
+		textOverlay.textContent = String(text || "");
+		renderTextOverlayRich();
+	}
+
+	function nodeBelongsToTextOverlay(node) {
+		if (!textOverlay || !node) return false;
+		return node === textOverlay || textOverlay.contains(node);
+	}
+
+	function getTextOffsetForDomPoint(node, offset) {
+		if (!textOverlay) return 0;
+		let count = 0;
+		let found = false;
+		const walk = current => {
+			if (found) return;
+			if (current === node) {
+				if (current.nodeType === Node.TEXT_NODE) {
+					count += Math.min(offset, (current.nodeValue || "").length);
+				} else {
+					const children = Array.from(current.childNodes).slice(0, offset);
+					children.forEach(child => {
+						count += getTextLengthForNode(child);
+					});
+				}
+				found = true;
+				return;
+			}
+			if (current.nodeType === Node.TEXT_NODE) {
+				count += (current.nodeValue || "").length;
+				return;
+			}
+			if (current.nodeName === "BR") {
+				count += 1;
+				return;
+			}
+			current.childNodes.forEach(walk);
+		};
+		walk(textOverlay);
+		return count;
+	}
+
+	function getTextLengthForNode(node) {
+		if (!node) return 0;
+		if (node.nodeType === Node.TEXT_NODE) return (node.nodeValue || "").length;
+		if (node.nodeName === "BR") return node.dataset?.emptyPlaceholder === "true" ? 0 : 1;
+		return Array.from(node.childNodes).reduce(
+			(sum, child) => sum + getTextLengthForNode(child),
+			0,
+		);
+	}
+
+	function getTextOverlaySelectionOffsets() {
+		if (!textOverlay) return null;
+		const sel = window.getSelection();
+		if (
+			!sel ||
+			sel.rangeCount === 0 ||
+			!nodeBelongsToTextOverlay(sel.anchorNode) ||
+			!nodeBelongsToTextOverlay(sel.focusNode)
+		) {
+			return null;
+		}
+		const anchor = getTextOffsetForDomPoint(sel.anchorNode, sel.anchorOffset);
+		const focus = getTextOffsetForDomPoint(sel.focusNode, sel.focusOffset);
+		return { start: Math.min(anchor, focus), end: Math.max(anchor, focus) };
+	}
+
+	function setTextOverlaySelectionRange(start, end) {
+		if (!textOverlay) return;
+		const textLen = getTextOverlayText().length;
+		const targetStart = Math.max(0, Math.min(textLen, start | 0));
+		const targetEnd = Math.max(targetStart, Math.min(textLen, end | 0));
+		const points = {};
+		let count = 0;
+		const walk = node => {
+			if (points.end) return;
+			if (node.nodeType === Node.TEXT_NODE) {
+				const len = (node.nodeValue || "").length;
+				if (!points.start && targetStart <= count + len) {
+					points.start = { node, offset: targetStart - count };
+				}
+				if (!points.end && targetEnd <= count + len) {
+					points.end = { node, offset: targetEnd - count };
+				}
+				count += len;
+				return;
+			}
+			if (node.nodeName === "BR") {
+				const brLen = node.dataset?.emptyPlaceholder === "true" ? 0 : 1;
+				if (!points.start && targetStart <= count) points.start = { node: node.parentNode, offset: Array.prototype.indexOf.call(node.parentNode.childNodes, node) };
+				if (!points.end && targetEnd <= count) points.end = { node: node.parentNode, offset: Array.prototype.indexOf.call(node.parentNode.childNodes, node) };
+				count += brLen;
+				return;
+			}
+			node.childNodes.forEach(walk);
+		};
+		walk(textOverlay);
+		if (!points.start) points.start = { node: textOverlay, offset: textOverlay.childNodes.length };
+		if (!points.end) points.end = points.start;
+		const range = document.createRange();
+		range.setStart(points.start.node, points.start.offset);
+		range.setEnd(points.end.node, points.end.offset);
+		const sel = window.getSelection();
+		sel.removeAllRanges();
+		sel.addRange(range);
+	}
 
 function commitTextFromOverlay() {
 	// Jeśli nie ma overlay ani prostokąta — nic nie rób
@@ -1369,7 +1637,7 @@ function commitTextFromOverlay() {
 		return;
 	}
 
-	const text = textOverlay.value;
+	const text = getTextOverlayText();
 
 	// Pusty tekst = anuluj bez zapisu
 	if (!text || !text.trim()) {
@@ -1381,9 +1649,15 @@ function commitTextFromOverlay() {
 		editingTextLayerIndex = null;
 		editingTextBaseOptions = null;
 		editingTextStyleRuns = [];
+		editingTextSelectionStart = 0;
+		editingTextSelectionEnd = 0;
 		window.setCurrentTextEditLayerIndex(null);
 		removeTextOverlay();
 		return;
+	}
+
+	if (!getEffectiveSelectionRange()) {
+		updateEditingBaseOptionsFromControls();
 	}
 
 	const options = editingTextBaseOptions
@@ -1410,6 +1684,8 @@ function commitTextFromOverlay() {
 	editingTextLayerIndex = null;
 	editingTextBaseOptions = null;
 	editingTextStyleRuns = [];
+	editingTextSelectionStart = 0;
+	editingTextSelectionEnd = 0;
 	window.setCurrentTextEditLayerIndex(null);
 
 	// Usuń overlay PRZED hideTextPanel żeby nie wywołać blur drugi raz
@@ -1422,6 +1698,8 @@ function commitTextFromOverlay() {
 	isTextMode = false;
 	editingTextBaseOptions = null;
 	editingTextStyleRuns = [];
+	editingTextSelectionStart = 0;
+	editingTextSelectionEnd = 0;
 }
 	function getFontStyleInfo(value) {
 		switch (value) {
@@ -1574,17 +1852,31 @@ function commitTextFromOverlay() {
 		textColorInput,
 	].forEach(el => {
 		if (!el) return;
-		el.addEventListener("input", () => {
+		const handleTypographyControlChange = () => {
+			const hasSelection = !!getEffectiveSelectionRange();
 			applyTypographyToSelectionRange();
-			applyOverlayFontStyles();
-		});
+			if (!hasSelection) {
+				updateEditingBaseOptionsFromControls();
+				applyOverlayFontStyles();
+				renderTextOverlayRich();
+			}
+			restoreOverlaySelectionVisual();
+		};
+		el.addEventListener("input", handleTypographyControlChange);
+		el.addEventListener("change", handleTypographyControlChange);
 	});
 
 	styleToggleButtons.forEach(btn => {
 		btn.addEventListener("click", () => {
 			btn.classList.toggle("active");
+			const hasSelection = !!getEffectiveSelectionRange();
 			applyTypographyToSelectionRange();
-			applyOverlayFontStyles();
+			if (!hasSelection) {
+				updateEditingBaseOptionsFromControls();
+				applyOverlayFontStyles();
+				renderTextOverlayRich();
+			}
+			restoreOverlaySelectionVisual();
 		});
 	});
 
@@ -2026,14 +2318,46 @@ function commitTextFromOverlay() {
 		);
 	}
 
+	function getEffectiveSelectionRange() {
+		if (!textOverlay) return null;
+		const textLen = getTextOverlayText().length;
+		const live = getTextOverlaySelectionOffsets();
+		if (live && live.end > live.start) {
+			editingTextSelectionStart = live.start;
+			editingTextSelectionEnd = live.end;
+			return { start: live.start, end: live.end };
+		}
+		const cachedStart = Math.max(
+			0,
+			Math.min(textLen, editingTextSelectionStart | 0),
+		);
+		const cachedEnd = Math.max(0, Math.min(textLen, editingTextSelectionEnd | 0));
+		if (cachedEnd > cachedStart) {
+			return { start: cachedStart, end: cachedEnd };
+		}
+		return null;
+	}
+
+	function restoreOverlaySelectionVisual() {
+		if (!textOverlay) return;
+		const start = Math.max(0, editingTextSelectionStart | 0);
+		const end = Math.max(start, editingTextSelectionEnd | 0);
+		window.setTimeout(() => {
+			if (!textOverlay) return;
+			textOverlay.focus();
+			setTextOverlaySelectionRange(start, end);
+		}, 0);
+	}
+
 	function applyTypographyToSelectionRange() {
 		if (!textOverlay) return;
-		const start = textOverlay.selectionStart | 0;
-		const end = textOverlay.selectionEnd | 0;
-		if (end <= start) {
-			updateEditingBaseOptionsFromControls();
+		const range = getEffectiveSelectionRange();
+		if (!range) {
+			// Brak zakresu: nie zmieniamy stylu globalnie.
+			// Zmiany z panelu typografii mają dotyczyć tylko zaznaczenia.
 			return;
 		}
+		const { start, end } = range;
 		const style = cloneTypographyOptionsForText(collectTypographyOptions());
 		const nextRuns = [];
 		for (const run of editingTextStyleRuns) {
@@ -2066,6 +2390,9 @@ function commitTextFromOverlay() {
 		nextRuns.push({ start, end, style });
 		nextRuns.sort((a, b) => a.start - b.start || a.end - b.end);
 		editingTextStyleRuns = nextRuns;
+		editingTextSelectionStart = start;
+		editingTextSelectionEnd = end;
+		renderTextOverlayRich();
 	}
 
 	function sampleRingStats(data, width, height, cx, cy, innerR, outerR) {
@@ -4575,7 +4902,6 @@ if (shapePanelCloseBtn) {
 		if (layer.canvas) layer.canvas.style.opacity = 0;
 
 		createTextOverlayForRect(textBoxRect);
-		if (textOverlay) textOverlay.value = td.text || "";
 
 		if (td.options) {
 			loadTypographyOptions(td.options);
@@ -4589,8 +4915,9 @@ if (shapePanelCloseBtn) {
 					start: run.start | 0,
 					end: run.end | 0,
 					style: { ...(run.style || {}) },
-				}))
+			}))
 			: [];
+		if (textOverlay) setTextOverlayText(td.text || "");
 
 		textPanel.classList.remove("hidden");
 
@@ -7129,8 +7456,6 @@ if (fillColorInput) {
 
 				createTextOverlayForRect(textBoxRect);
 
-				if (textOverlay) textOverlay.value = hit.layer.textData.text || "";
-
 				if (hit.layer.textData.options) {
 					loadTypographyOptions(hit.layer.textData.options);
 					editingTextBaseOptions = cloneTypographyOptionsForText(
@@ -7145,8 +7470,9 @@ if (fillColorInput) {
 							start: run.start | 0,
 							end: run.end | 0,
 							style: { ...(run.style || {}) },
-						}))
+					}))
 					: [];
+				if (textOverlay) setTextOverlayText(hit.layer.textData.text || "");
 
 				textPanel.classList.remove("hidden");
 
